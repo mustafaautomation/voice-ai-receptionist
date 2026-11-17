@@ -1,0 +1,92 @@
+import { existsSync } from "node:fs";
+import { config as loadDotenv } from "dotenv";
+import { z } from "zod";
+
+const schema = z.object({
+  PORT: z.coerce.number().int().positive().default(3000),
+  HOST: z.string().min(1).default("0.0.0.0"),
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  LOG_LEVEL: z.string().default("info"),
+  DATABASE_PATH: z.string().min(1).default("./data/clinic.sqlite"),
+  CALENDAR_PROVIDER: z.enum(["sqlite", "memory", "calcom"]).default("sqlite"),
+  SEED_ON_BOOT: z.enum(["true", "false"]).default("true"),
+  VAPI_WEBHOOK_SECRET: z.string().min(8),
+  VAPI_API_KEY: z.string().optional().default(""),
+  PUBLIC_BASE_URL: z.string().url().default("http://localhost:3000"),
+  CRM_PROVIDER: z.enum(["memory", "webhook", "ghl-stub"]).default("memory"),
+  CRM_WEBHOOK_URL: z.string().url().optional().or(z.literal("")).default(""),
+  CRM_WEBHOOK_SECRET: z.string().optional().default(""),
+  CALCOM_API_KEY: z.string().optional().default(""),
+  CALCOM_EVENT_TYPE_ID: z.string().optional().default(""),
+  CALCOM_API_BASE: z.string().url().default("https://api.cal.com"),
+  TRANSFER_NUMBER: z.string().min(8).default("+13125550199"),
+  OPENAI_API_KEY: z.string().optional().default(""),
+  OPENAI_MODEL: z.string().default("gpt-4o-mini"),
+});
+
+export type AppConfig = {
+  port: number;
+  host: string;
+  nodeEnv: "development" | "test" | "production";
+  logLevel: string;
+  databasePath: string;
+  calendarProvider: "sqlite" | "memory" | "calcom";
+  seedOnBoot: boolean;
+  vapiWebhookSecret: string;
+  vapiApiKey: string;
+  publicBaseUrl: string;
+  crmProvider: "memory" | "webhook" | "ghl-stub";
+  crmWebhookUrl: string;
+  crmWebhookSecret: string;
+  calcomApiKey: string;
+  calcomEventTypeId: string;
+  calcomApiBase: string;
+  transferNumber: string;
+  openaiApiKey: string;
+  openaiModel: string;
+};
+
+export function loadEnvFile(): void {
+  if (existsSync(".env")) loadDotenv();
+}
+
+export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
+  const parsed = schema.safeParse(env);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
+    throw new Error(`Invalid environment: ${issues}`);
+  }
+  const value = parsed.data;
+  if (value.CALENDAR_PROVIDER === "calcom" && (!value.CALCOM_API_KEY || !value.CALCOM_EVENT_TYPE_ID)) {
+    throw new Error("CALCOM_API_KEY and CALCOM_EVENT_TYPE_ID are required when CALENDAR_PROVIDER=calcom");
+  }
+  if (value.CRM_PROVIDER === "webhook" && !value.CRM_WEBHOOK_URL) {
+    throw new Error("CRM_WEBHOOK_URL is required when CRM_PROVIDER=webhook");
+  }
+  return {
+    port: value.PORT,
+    host: value.HOST,
+    nodeEnv: value.NODE_ENV,
+    logLevel: value.LOG_LEVEL,
+    databasePath: value.DATABASE_PATH,
+    calendarProvider: value.CALENDAR_PROVIDER,
+    seedOnBoot: value.SEED_ON_BOOT === "true",
+    vapiWebhookSecret: value.VAPI_WEBHOOK_SECRET,
+    vapiApiKey: value.VAPI_API_KEY,
+    publicBaseUrl: value.PUBLIC_BASE_URL.replace(/\/$/, ""),
+    crmProvider: value.CRM_PROVIDER,
+    crmWebhookUrl: value.CRM_WEBHOOK_URL,
+    crmWebhookSecret: value.CRM_WEBHOOK_SECRET,
+    calcomApiKey: value.CALCOM_API_KEY,
+    calcomEventTypeId: value.CALCOM_EVENT_TYPE_ID,
+    calcomApiBase: value.CALCOM_API_BASE,
+    transferNumber: value.TRANSFER_NUMBER,
+    openaiApiKey: value.OPENAI_API_KEY,
+    openaiModel: value.OPENAI_MODEL,
+  };
+}
+
+export function loadConfig(): AppConfig {
+  loadEnvFile();
+  return parseConfig(process.env);
+}

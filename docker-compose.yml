@@ -1,0 +1,14 @@
+services:
+  receptionist:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_PATH: /app/data/clinic.sqlite
+    volumes:
+      - clinic-data:/app/data
+
+volumes:
+  clinic-data:
