@@ -17,14 +17,26 @@ import { WebhookCrm } from "./crm/webhook.js";
 import type { SqliteDatabase } from "./db/database.js";
 import { registerDashboardRoutes } from "./dashboard/routes.js";
 import { registerVapiRoutes } from "./vapi/routes.js";
+import { MemoryCallQuota, type CallQuota } from "./webcall/quota.js";
+import { RelayCallQuota } from "./webcall/relay-quota.js";
+import { registerWebCallRoutes, type WebCallAuth } from "./webcall/routes.js";
 
 export type AppDeps = {
   config: AppConfig;
   db: SqliteDatabase;
   calendar?: CalendarProvider;
   crm?: CrmAdapter;
+  callQuota?: CallQuota;
   now?: () => Date;
 };
+
+export function createCallQuota(config: AppConfig): CallQuota {
+  const limits = { perVisitor: config.webCallLimitPerVisitor, perDay: config.webCallLimitPerDay };
+  if (config.relayUrl && config.relayToken) {
+    return new RelayCallQuota({ baseUrl: config.relayUrl, token: config.relayToken, namespace: config.relayNamespace, limits });
+  }
+  return new MemoryCallQuota(limits);
+}
 
 export function createCalendar(config: AppConfig, db: SqliteDatabase, now: () => Date): CalendarProvider {
   if (config.calendarProvider === "memory") return new LocalCalendar("memory", new MemoryAppointmentStore(), now);
@@ -92,6 +104,29 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.get("/health", async () => ({ ok: true, clinic: "Brightside Dental" }));
 
   await registerDashboardRoutes(app, { calls, calendar });
+  const config = deps.config;
+  const auth: WebCallAuth | null =
+    config.vapiApiKey && config.vapiOrgId
+      ? { mode: "jwt", privateKey: config.vapiApiKey, orgId: config.vapiOrgId }
+      : config.vapiPublicKey
+        ? { mode: "public-key", publicKey: config.vapiPublicKey }
+        : null;
+  await registerWebCallRoutes(
+    app,
+    auth && config.vapiAssistantId
+      ? {
+          quota: deps.callQuota ?? createCallQuota(config),
+          auth,
+          assistantId: config.vapiAssistantId,
+          allowedOrigins: config.webCallOrigins,
+          tokenTtlSeconds: config.webCallTokenTtlSeconds,
+          perVisitor: config.webCallLimitPerVisitor,
+          hashKey: config.vapiWebhookSecret,
+          trustProxyHeaders: config.trustProxyHeaders,
+          now,
+        }
+      : null,
+  );
   await registerVapiRoutes(app, {
     secret: deps.config.vapiWebhookSecret,
     calendar,

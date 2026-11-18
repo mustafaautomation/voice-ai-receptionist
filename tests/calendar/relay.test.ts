@@ -1,60 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { RelayCalendar } from "../../src/calendar/relay.js";
 import { executeTool } from "../../src/vapi/dispatch.js";
+import { fakeRelay, RELAY_TOKEN } from "../fake-relay.js";
 
 const NOW = new Date("2026-11-18T15:00:00.000Z");
-const TOKEN = "relay-test-token";
-
-type Doc = { collection: string; id: string; data: Record<string, unknown>; created_at: number; updated_at: number };
-
-/** In-memory stand-in for the D1 document store, with the same reserve rule. */
-function fakeRelay(options: { down?: boolean } = {}) {
-  const docs = new Map<string, Doc>();
-  let clock = 1;
-  const requests: string[] = [];
-  const fetchImpl: typeof fetch = async (input, init) => {
-    if (options.down) throw new TypeError("fetch failed");
-    const url = new URL(String(input));
-    const method = init?.method ?? "GET";
-    requests.push(`${method} ${decodeURIComponent(url.pathname)}`);
-    const headers = new Headers(init?.headers);
-    if (headers.get("authorization") !== `Bearer ${TOKEN}`) return Response.json({ error: "unauthorized" }, { status: 401 });
-    const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
-    const [, , collection, id, action] = parts;
-    if (method === "GET" && !id) {
-      const key = url.searchParams.get("filter_key");
-      const value = url.searchParams.get("filter_value");
-      const items = [...docs.values()]
-        .filter((doc) => doc.collection === collection)
-        .filter((doc) => (key ? String(doc.data[key]) === value : true))
-        .sort((a, b) => b.updated_at - a.updated_at);
-      return Response.json({ items, next_cursor: null });
-    }
-    const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
-    const docKey = `${collection}/${id}`;
-    if (method === "POST" && action === "reserve") {
-      const holder = [...docs.values()].find(
-        (doc) =>
-          doc.collection === collection &&
-          doc.id !== id &&
-          doc.data.slot_key === body.slot_key &&
-          doc.data.status !== "cancelled",
-      );
-      if (holder) return Response.json({ error: "slot_taken", held_by: holder.id }, { status: 409 });
-    }
-    const existing = docs.get(docKey);
-    const doc: Doc = {
-      collection: collection ?? "",
-      id: id ?? "",
-      data: body,
-      created_at: existing?.created_at ?? clock,
-      updated_at: (clock += 1),
-    };
-    docs.set(docKey, doc);
-    return Response.json(doc, { status: action === "reserve" ? 201 : 200 });
-  };
-  return { docs, fetchImpl, requests };
-}
+const TOKEN = RELAY_TOKEN;
 
 function calendar(relay: ReturnType<typeof fakeRelay>, namespace = "brightside") {
   return new RelayCalendar({

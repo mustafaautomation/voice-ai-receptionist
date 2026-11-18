@@ -56,3 +56,4 @@ h2 { margin: 0 0 .6rem; font-size: 1.1rem; }
 .note { color: var(--muted); font-size: .92rem; margin-bottom: 0; }
 code { font-size: .85em; background: #f1ebdf; padding: .05rem .3rem; border-radius: 5px; }
 footer { border-top: 1px solid var(--line); padding: 1.2rem 0 2.5rem; color: var(--muted); font-size: .88rem; }
+.console[data-state="limited"] .status { color: var(--clay); font-weight: 600; }

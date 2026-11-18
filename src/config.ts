@@ -23,6 +23,14 @@ const schema = z.object({
   RELAY_URL: z.string().url().optional().or(z.literal("")).default(""),
   RELAY_TOKEN: z.string().optional().default(""),
   RELAY_NAMESPACE: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/).default("brightside"),
+  VAPI_ORG_ID: z.string().optional().default(""),
+  VAPI_PUBLIC_KEY: z.string().optional().default(""),
+  VAPI_ASSISTANT_ID: z.string().optional().default(""),
+  WEB_CALL_ORIGINS: z.string().optional().default(""),
+  WEB_CALL_LIMIT_PER_VISITOR: z.coerce.number().int().min(1).max(100).default(3),
+  WEB_CALL_LIMIT_PER_DAY: z.coerce.number().int().min(1).max(10000).default(40),
+  WEB_CALL_TOKEN_TTL_SECONDS: z.coerce.number().int().min(10).max(600).default(30),
+  TRUST_PROXY_HEADERS: z.enum(["true", "false"]).default("false"),
   TRANSFER_NUMBER: z.string().min(8).default("+13125550199"),
   OPENAI_API_KEY: z.string().optional().default(""),
   OPENAI_MODEL: z.string().default("gpt-4o-mini"),
@@ -49,6 +57,14 @@ export type AppConfig = {
   relayUrl: string;
   relayToken: string;
   relayNamespace: string;
+  vapiOrgId: string;
+  vapiPublicKey: string;
+  vapiAssistantId: string;
+  webCallOrigins: string[];
+  webCallLimitPerVisitor: number;
+  webCallLimitPerDay: number;
+  webCallTokenTtlSeconds: number;
+  trustProxyHeaders: boolean;
   transferNumber: string;
   openaiApiKey: string;
   openaiModel: string;
@@ -95,6 +111,17 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
     relayUrl: value.RELAY_URL,
     relayToken: value.RELAY_TOKEN,
     relayNamespace: value.RELAY_NAMESPACE,
+    vapiOrgId: value.VAPI_ORG_ID,
+    vapiPublicKey: value.VAPI_PUBLIC_KEY,
+    vapiAssistantId: value.VAPI_ASSISTANT_ID,
+    webCallOrigins: (value.WEB_CALL_ORIGINS || value.PUBLIC_BASE_URL)
+      .split(",")
+      .map((origin) => origin.trim().replace(/\/$/, ""))
+      .filter(Boolean),
+    webCallLimitPerVisitor: value.WEB_CALL_LIMIT_PER_VISITOR,
+    webCallLimitPerDay: value.WEB_CALL_LIMIT_PER_DAY,
+    webCallTokenTtlSeconds: value.WEB_CALL_TOKEN_TTL_SECONDS,
+    trustProxyHeaders: value.TRUST_PROXY_HEADERS === "true",
     transferNumber: value.TRANSFER_NUMBER,
     openaiApiKey: value.OPENAI_API_KEY,
     openaiModel: value.OPENAI_MODEL,
