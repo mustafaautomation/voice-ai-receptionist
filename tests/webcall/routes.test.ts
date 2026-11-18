@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { describe, expect, test } from "vitest";
 import { buildApp } from "../../src/app.js";
 import { MemoryCallQuota } from "../../src/webcall/quota.js";
+import { visitorBucket } from "../../src/webcall/routes.js";
 import { memoryDb, NOW, testConfig } from "../helpers.js";
 
 const KEY = "test-private-key-not-real";
@@ -88,6 +89,21 @@ describe("POST /api/call-token", () => {
     const blocked = await server.inject(post("203.0.113.8"));
     expect(blocked.statusCode).toBe(429);
     expect(blocked.body).not.toContain("public-key-test");
+    await server.close();
+  });
+
+  test("counts IPv6 visitors per /64", async () => {
+    expect(visitorBucket("203.0.113.5")).toBe("203.0.113.5");
+    expect(visitorBucket("::ffff:203.0.113.5")).toBe("203.0.113.5");
+    expect(visitorBucket("2001:db8:0:12::1")).toBe("2001:db8:0:12::/64");
+    expect(visitorBucket("2001:0db8:0000:0012:abcd:1:2:3")).toBe("2001:db8:0:12::/64");
+    expect(visitorBucket("2001:db8::")).toBe("2001:db8:0:0::/64");
+    expect(visitorBucket("[2001:db8:0:12::9]")).toBe("2001:db8:0:12::/64");
+
+    const server = await app();
+    for (const host of ["1", "2", "3"]) expect((await server.inject(post(`2001:db8:0:12::${host}`))).statusCode).toBe(200);
+    expect((await server.inject(post("2001:db8:0:12:ffff::4"))).statusCode).toBe(429);
+    expect((await server.inject(post("2001:db8:0:13::1"))).statusCode).toBe(200);
     await server.close();
   });
 

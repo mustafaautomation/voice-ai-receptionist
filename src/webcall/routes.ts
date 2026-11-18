@@ -37,6 +37,26 @@ export function clientIp(request: FastifyRequest, trustProxyHeaders: boolean): s
   return request.ip;
 }
 
+/**
+ * The key a visitor is counted under. IPv4 addresses count individually. IPv6
+ * addresses count per /64, because one device usually rotates through many
+ * addresses inside its /64.
+ */
+export function visitorBucket(ip: string): string {
+  const address = ip.trim().toLowerCase().replace(/^\[|\]$/g, "").split("%")[0] ?? "";
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(address);
+  if (mapped?.[1]) return mapped[1];
+  if (!address.includes(":")) return address;
+  const [head = "", tail] = address.split("::");
+  const left = head ? head.split(":") : [];
+  const right = tail ? tail.split(":") : [];
+  const groups = tail === undefined ? left : [...left, ...Array(Math.max(0, 8 - left.length - right.length)).fill("0"), ...right];
+  return `${groups
+    .slice(0, 4)
+    .map((g) => (g || "0").replace(/^0+(?=.)/, ""))
+    .join(":")}::/64`;
+}
+
 function hours(seconds: number): string {
   const h = Math.ceil(seconds / 3600);
   return h <= 1 ? "about an hour" : `about ${h} hours`;
@@ -61,7 +81,7 @@ export async function registerWebCallRoutes(app: FastifyInstance, deps: WebCallD
       return reply.code(403).send({ error: "origin_not_allowed", message: "Calls can only be started from the demo page." });
     }
     const ip = clientIp(request, deps.trustProxyHeaders);
-    const visitorKey = createHmac("sha256", deps.hashKey).update(`visitor:${ip}`).digest("hex").slice(0, 32);
+    const visitorKey = createHmac("sha256", deps.hashKey).update(`visitor:${visitorBucket(ip)}`).digest("hex").slice(0, 32);
     const now = deps.now();
     const result = await deps.quota.acquire({ visitorKey, clientIp: ip, now });
     if (!result.ok) {
