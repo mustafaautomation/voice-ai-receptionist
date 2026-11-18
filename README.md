@@ -8,6 +8,27 @@ A caller reaches a [Vapi](https://vapi.ai) assistant. Twilio supplies the phone 
 
 Author: Muhammad Mustafa.
 
+## Live demo
+
+**https://voice.quvantic.com** — press "Talk to the receptionist" and speak to it in the browser (microphone needed).
+
+- It is a portfolio demo, not a product. The clinic, address, and numbers are made up; please use a made-up name and a `555` number.
+- The browser call goes to the same Vapi assistant and the same tool API described below. Bookings are real rows in the demo calendar and show up at [/appointments](https://voice.quvantic.com/appointments).
+- It runs on free Vapi credits. Calls are capped at 4 minutes, and the button stops working once the credits run out.
+- There is no phone number attached to the live demo. `transfer_to_human` returns the fictional front-desk number; on a web call nothing is actually dialled.
+- The call log at [/calls](https://voice.quvantic.com/calls) starts with seeded sample calls. It lives in SQLite under `/tmp` on the serverless instance, so it resets when the instance is recycled and a call can be missing if its requests landed on different instances. Appointments do not have this problem (see below).
+
+### How the live deploy is wired
+
+| Piece | Where |
+| --- | --- |
+| Landing page and dashboard | Vercel. `public/` is served as static files; `api/index.js` runs the same Fastify app as `npm run dev`. |
+| Voice (speech-to-text, `gpt-4o-mini`, text-to-speech) | Vapi, started from the page with `@vapi-ai/web` and the public key. |
+| Tool calls and end-of-call report | Vapi posts to `https://voice.quvantic.com/vapi/tools/<name>` and `/vapi/webhook` with an `x-vapi-secret` header. |
+| Appointments | `CALENDAR_PROVIDER=relay`: a JSON document store on Cloudflare D1, behind a Worker. |
+
+The relay calendar loads the clinic's appointments, runs the same rules as the SQLite calendar, then writes through the store's atomic `reserve` call keyed on the slot start. A second booking for the same slot gets `409` and the caller hears that the time is taken, even when the two requests run on different serverless instances. If the store cannot be reached, the tool returns a spoken fallback instead of an error. Demo rows are deleted after 30 days.
+
 ## Call flow
 
 ```mermaid
@@ -87,7 +108,7 @@ Business rules, America/Chicago:
 
 ## Calendar and CRM
 
-`CALENDAR_PROVIDER=sqlite` is the default. The database is a local file (`data/clinic.sqlite`) seeded with fake calls when empty. `memory` uses the same rules with no file. `calcom` calls the Cal.com API v2 and is off unless `CALCOM_API_KEY` and `CALCOM_EVENT_TYPE_ID` are set. Hours and the cancellation window are still checked locally before that HTTP call.
+`CALENDAR_PROVIDER=sqlite` is the default. `relay` is what the live demo uses: it needs `RELAY_URL` and `RELAY_TOKEN` for a document store with list, put, and atomic reserve routes (see `src/calendar/relay.ts`), and tags rows with `RELAY_NAMESPACE`. The database is a local file (`data/clinic.sqlite`) seeded with fake calls when empty. `memory` uses the same rules with no file. `calcom` calls the Cal.com API v2 and is off unless `CALCOM_API_KEY` and `CALCOM_EVENT_TYPE_ID` are set. Hours and the cancellation window are still checked locally before that HTTP call.
 
 `CRM_PROVIDER=memory` stores the push result on the call. `webhook` POSTs JSON to `CRM_WEBHOOK_URL`. `ghl-stub` only builds a contact-shaped payload and returns a fake id. It does not call GoHighLevel. See `src/crm/ghl-stub.ts`.
 
@@ -102,7 +123,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000/calls . The seed runs when the calls table is empty.
+Open http://localhost:3000 for the landing page or http://localhost:3000/calls for the call log. The seed runs when the calls table is empty. The landing page needs a Vapi public key and assistant id in `public/index.html` to place a call.
 
 Docker Compose uses the same `.env` file:
 
@@ -118,7 +139,11 @@ Assistant name, system prompt, voice, and tool definitions live in `src/vapi/ass
 npm run vapi:sync
 ```
 
-With no `VAPI_API_KEY`, that prints the payload and does not call Vapi. With a key, it creates or updates the assistant named `Brightside Dental Receptionist`. Set `PUBLIC_BASE_URL` to a URL Vapi can reach (a tunnel or a host) before syncing, because tool URLs are built from it. Put the same value in the Vapi server URL secret as `VAPI_WEBHOOK_SECRET`.
+With no `VAPI_API_KEY`, that prints the payload and does not call Vapi. With a key, it creates or updates the assistant named `Brightside Dental Receptionist`. Set `PUBLIC_BASE_URL` to a URL Vapi can reach (a tunnel or a host) before syncing, because tool URLs are built from it. The payload sends `VAPI_WEBHOOK_SECRET` as an `x-vapi-secret` header on the server URL and on every tool, so nothing needs to be copied by hand. Calls are capped at 240 seconds.
+
+### Deploy to Vercel
+
+`vercel.json` builds with `npm run build`, serves `public/`, and sends every other path to `api/index.js`. Set these project environment variables: `VAPI_WEBHOOK_SECRET`, `CALENDAR_PROVIDER=relay`, `RELAY_URL`, `RELAY_TOKEN`, `DATABASE_PATH=/tmp/clinic.sqlite`, `SERVE_STATIC=false`, and `PUBLIC_BASE_URL`. Then run `vercel deploy --prod` and `npm run vapi:sync` with the same `PUBLIC_BASE_URL`.
 
 ### Connect a Twilio number
 

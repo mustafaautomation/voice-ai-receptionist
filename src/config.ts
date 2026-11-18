@@ -8,8 +8,9 @@ const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.string().default("info"),
   DATABASE_PATH: z.string().min(1).default("./data/clinic.sqlite"),
-  CALENDAR_PROVIDER: z.enum(["sqlite", "memory", "calcom"]).default("sqlite"),
+  CALENDAR_PROVIDER: z.enum(["sqlite", "memory", "calcom", "relay"]).default("sqlite"),
   SEED_ON_BOOT: z.enum(["true", "false"]).default("true"),
+  SERVE_STATIC: z.enum(["true", "false"]).default("true"),
   VAPI_WEBHOOK_SECRET: z.string().min(8),
   VAPI_API_KEY: z.string().optional().default(""),
   PUBLIC_BASE_URL: z.string().url().default("http://localhost:3000"),
@@ -19,6 +20,9 @@ const schema = z.object({
   CALCOM_API_KEY: z.string().optional().default(""),
   CALCOM_EVENT_TYPE_ID: z.string().optional().default(""),
   CALCOM_API_BASE: z.string().url().default("https://api.cal.com"),
+  RELAY_URL: z.string().url().optional().or(z.literal("")).default(""),
+  RELAY_TOKEN: z.string().optional().default(""),
+  RELAY_NAMESPACE: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/).default("brightside"),
   TRANSFER_NUMBER: z.string().min(8).default("+13125550199"),
   OPENAI_API_KEY: z.string().optional().default(""),
   OPENAI_MODEL: z.string().default("gpt-4o-mini"),
@@ -30,8 +34,9 @@ export type AppConfig = {
   nodeEnv: "development" | "test" | "production";
   logLevel: string;
   databasePath: string;
-  calendarProvider: "sqlite" | "memory" | "calcom";
+  calendarProvider: "sqlite" | "memory" | "calcom" | "relay";
   seedOnBoot: boolean;
+  serveStatic: boolean;
   vapiWebhookSecret: string;
   vapiApiKey: string;
   publicBaseUrl: string;
@@ -41,6 +46,9 @@ export type AppConfig = {
   calcomApiKey: string;
   calcomEventTypeId: string;
   calcomApiBase: string;
+  relayUrl: string;
+  relayToken: string;
+  relayNamespace: string;
   transferNumber: string;
   openaiApiKey: string;
   openaiModel: string;
@@ -60,6 +68,9 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
   if (value.CALENDAR_PROVIDER === "calcom" && (!value.CALCOM_API_KEY || !value.CALCOM_EVENT_TYPE_ID)) {
     throw new Error("CALCOM_API_KEY and CALCOM_EVENT_TYPE_ID are required when CALENDAR_PROVIDER=calcom");
   }
+  if (value.CALENDAR_PROVIDER === "relay" && (!value.RELAY_URL || !value.RELAY_TOKEN)) {
+    throw new Error("RELAY_URL and RELAY_TOKEN are required when CALENDAR_PROVIDER=relay");
+  }
   if (value.CRM_PROVIDER === "webhook" && !value.CRM_WEBHOOK_URL) {
     throw new Error("CRM_WEBHOOK_URL is required when CRM_PROVIDER=webhook");
   }
@@ -71,6 +82,7 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
     databasePath: value.DATABASE_PATH,
     calendarProvider: value.CALENDAR_PROVIDER,
     seedOnBoot: value.SEED_ON_BOOT === "true",
+    serveStatic: value.SERVE_STATIC === "true",
     vapiWebhookSecret: value.VAPI_WEBHOOK_SECRET,
     vapiApiKey: value.VAPI_API_KEY,
     publicBaseUrl: value.PUBLIC_BASE_URL.replace(/\/$/, ""),
@@ -80,6 +92,9 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
     calcomApiKey: value.CALCOM_API_KEY,
     calcomEventTypeId: value.CALCOM_EVENT_TYPE_ID,
     calcomApiBase: value.CALCOM_API_BASE,
+    relayUrl: value.RELAY_URL,
+    relayToken: value.RELAY_TOKEN,
+    relayNamespace: value.RELAY_NAMESPACE,
     transferNumber: value.TRANSFER_NUMBER,
     openaiApiKey: value.OPENAI_API_KEY,
     openaiModel: value.OPENAI_MODEL,

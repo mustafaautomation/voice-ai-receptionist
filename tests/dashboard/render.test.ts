@@ -36,7 +36,12 @@ describe("dashboard", () => {
     const missing = await app.inject({ method: "GET", url: "/calls/missing" });
     expect(missing.statusCode).toBe(404);
     const home = await app.inject({ method: "GET", url: "/" });
-    expect(home.statusCode).toBe(302);
+    expect(home.statusCode).toBe(200);
+    expect(home.body).toContain("Talk to the receptionist");
+    expect(home.headers["content-security-policy"]).toBeUndefined();
+    expect(list.headers["content-security-policy"]).toContain("default-src 'self'");
+    const css = await app.inject({ method: "GET", url: "/assets/talk.css" });
+    expect(css.statusCode).toBe(200);
     const health = await app.inject({ method: "GET", url: "/health" });
     expect(health.json()).toMatchObject({ ok: true });
     const api = await app.inject({ method: "GET", url: "/api/appointments" });

@@ -1,14 +1,24 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
 import type { CalendarProvider } from "../calendar/types.js";
 import type { CallStore } from "../calls/store.js";
 import { filterCalls } from "./format.js";
 import { renderAppointmentsPage, renderCallDetail, renderCallsPage, renderNotFound } from "./render.js";
 
+let landing: Promise<string> | undefined;
+
 export async function registerDashboardRoutes(
   app: FastifyInstance,
   deps: { calls: CallStore; calendar: CalendarProvider },
 ): Promise<void> {
-  app.get("/", async (_request, reply) => reply.redirect("/calls"));
+  // Landing page with the browser call button. It loads the Vapi web SDK from a CDN,
+  // so it opts out of the strict CSP the dashboard pages use.
+  app.get("/", async (_request, reply) => {
+    landing ??= readFile(join(process.cwd(), "public", "index.html"), "utf8");
+    reply.removeHeader("content-security-policy");
+    return reply.type("text/html").send(await landing);
+  });
 
   app.get("/calls", async (request, reply) => {
     const query = typeof (request.query as { q?: unknown }).q === "string" ? (request.query as { q: string }).q : "";

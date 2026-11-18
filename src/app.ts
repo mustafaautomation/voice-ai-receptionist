@@ -1,12 +1,12 @@
 import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import helmet from "@fastify/helmet";
-import fastifyStatic from "@fastify/static";
 import { LocalCalendar } from "./calendar/local.js";
 import { MemoryAppointmentStore } from "./calendar/memory.js";
 import { SqliteAppointmentStore } from "./calendar/sqlite.js";
 import { SqliteCalendar } from "./calendar/sqlite-calendar.js";
 import { CalcomCalendar } from "./calendar/calcom.js";
+import { RelayCalendar } from "./calendar/relay.js";
 import type { CalendarProvider } from "./calendar/types.js";
 import { CallStore } from "./calls/store.js";
 import type { AppConfig } from "./config.js";
@@ -33,6 +33,14 @@ export function createCalendar(config: AppConfig, db: SqliteDatabase, now: () =>
       apiKey: config.calcomApiKey,
       eventTypeId: config.calcomEventTypeId,
       baseUrl: config.calcomApiBase,
+      now,
+    });
+  }
+  if (config.calendarProvider === "relay") {
+    return new RelayCalendar({
+      baseUrl: config.relayUrl,
+      token: config.relayToken,
+      namespace: config.relayNamespace,
       now,
     });
   }
@@ -72,10 +80,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       },
     },
   });
-  await app.register(fastifyStatic, {
-    root: join(process.cwd(), "public"),
-    prefix: "/assets/",
-  });
+  if (deps.config.serveStatic) {
+    // Loaded lazily: on Vercel the CDN serves public/ and this plugin is skipped.
+    const { default: fastifyStatic } = await import("@fastify/static");
+    await app.register(fastifyStatic, {
+      root: join(process.cwd(), "public", "assets"),
+      prefix: "/assets/",
+    });
+  }
 
   app.get("/health", async () => ({ ok: true, clinic: "Brightside Dental" }));
 

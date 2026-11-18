@@ -13,7 +13,15 @@ describe("assistant sync", () => {
       },
     });
     expect(result.mode).toBe("dry-run");
-    expect(result.payload.serverUrl).toBe("https://demo.example.test/vapi/webhook");
+    expect(result.payload.server).toEqual({
+      url: "https://demo.example.test/vapi/webhook",
+      headers: { "x-vapi-secret": "local-secret" },
+    });
+    expect(result.payload.serverMessages).toEqual(["end-of-call-report"]);
+    expect(result.payload.model.tools[0]?.server).toEqual({
+      url: "https://demo.example.test/vapi/tools/check_availability",
+      headers: { "x-vapi-secret": "local-secret" },
+    });
     expect(result.payload.model.tools.map((tool) => tool.function.name)).toEqual([
       "check_availability",
       "book_appointment",
@@ -22,7 +30,7 @@ describe("assistant sync", () => {
       "transfer_to_human",
     ]);
     expect(SYSTEM_PROMPT).toContain("Brightside Dental");
-    expect(buildAssistant({ publicBaseUrl: "https://demo.example.test" }).serverUrlSecret).toBeUndefined();
+    expect(buildAssistant({ publicBaseUrl: "https://demo.example.test" }).server.headers).toBeUndefined();
   });
 
   test("updates an assistant with the same name and creates one otherwise", async () => {
@@ -58,5 +66,13 @@ describe("assistant sync", () => {
     expect(parseConfig({ VAPI_WEBHOOK_SECRET: "local-secret" }).calendarProvider).toBe("sqlite");
     expect(() => parseConfig({ VAPI_WEBHOOK_SECRET: "local-secret", CALENDAR_PROVIDER: "calcom" })).toThrow(/CALCOM_API_KEY/);
     expect(() => parseConfig({ VAPI_WEBHOOK_SECRET: "local-secret", CRM_PROVIDER: "webhook" })).toThrow(/CRM_WEBHOOK_URL/);
+    expect(() => parseConfig({ VAPI_WEBHOOK_SECRET: "local-secret", CALENDAR_PROVIDER: "relay" })).toThrow(/RELAY_URL/);
+    const relay = parseConfig({
+      VAPI_WEBHOOK_SECRET: "local-secret",
+      CALENDAR_PROVIDER: "relay",
+      RELAY_URL: "https://relay.example.test",
+      RELAY_TOKEN: "relay-token",
+    });
+    expect(relay).toMatchObject({ calendarProvider: "relay", relayNamespace: "brightside" });
   });
 });
