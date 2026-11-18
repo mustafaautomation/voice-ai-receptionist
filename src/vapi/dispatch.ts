@@ -20,7 +20,16 @@ export async function executeTool(name: string, args: Record<string, unknown>, c
       message: parsed.error.issues.map((issue) => `${issue.path.join(".") || "arguments"}: ${issue.message}`).join("; "),
     };
   }
-  return runTool(name, parsed.data, ctx);
+  try {
+    return await runTool(name, parsed.data, ctx);
+  } catch {
+    // A calendar outage must still give the assistant something it can say.
+    return {
+      ok: false,
+      code: "tool_error",
+      message: "I cannot reach the calendar right now. I can transfer you to the front desk.",
+    };
+  }
 }
 
 async function runTool(name: ToolName, args: Record<string, unknown>, ctx: ToolContext): Promise<unknown> {

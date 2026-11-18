@@ -12,7 +12,7 @@ import type {
 } from "../domain/types.js";
 
 export interface CalendarProvider {
-  readonly kind: "memory" | "sqlite" | "calcom";
+  readonly kind: "memory" | "sqlite" | "calcom" | "relay";
   checkAvailability(input: AvailabilityInput): Promise<AvailabilityResult>;
   book(input: BookInput): Promise<BookResult>;
   reschedule(input: RescheduleInput): Promise<RescheduleResult>;

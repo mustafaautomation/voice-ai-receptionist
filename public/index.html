@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Talk to the Brightside Dental receptionist · voice AI demo</title>
+  <meta name="description" content="Live demo of a voice AI receptionist for a fictional dental clinic. Talk to it in the browser; it checks a real calendar and books, moves, or cancels visits.">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/talk.css">
+</head>
+<body>
+  <header class="bar">
+    <a class="brand" href="/">
+      <img src="/assets/favicon.svg" alt="" width="28" height="28">
+      <span><strong>Brightside Dental</strong><small>Voice receptionist demo</small></span>
+    </a>
+    <nav>
+      <a href="/calls">Call log</a>
+      <a href="/appointments">Appointments</a>
+      <a href="https://github.com/mustafaautomation/voice-ai-receptionist">Source</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="eyebrow">Live demo · fictional clinic</p>
+      <h1>Talk to the front desk.</h1>
+      <p class="lede">An AI receptionist for a made-up dental clinic in Chicago. It answers questions about hours and services, and it checks a real calendar before it books, moves, or cancels a visit.</p>
+
+      <div class="console" id="console" data-state="idle">
+        <button id="talk" class="talk" type="button"
+          data-public-key="043e5ee1-864d-4192-b81c-c84e2ff3772c"
+          data-assistant-id="f81cca1a-7ef5-40d2-91c2-88065f88fef7">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="label">Talk to the receptionist</span>
+        </button>
+        <p class="status" id="status" role="status" aria-live="polite">Uses your microphone. Calls end after 4 minutes.</p>
+        <div class="meter" aria-hidden="true"><span id="level"></span></div>
+        <ol class="transcript" id="transcript" aria-label="Live transcript"></ol>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article>
+        <h2>Try saying</h2>
+        <ul class="prompts">
+          <li>"What are your hours on Saturday?"</li>
+          <li>"I'd like a cleaning next week. My name is Sam Lee, my number is 312-555-0144."</li>
+          <li>"Can I speak to a person about my bill?"</li>
+        </ul>
+        <p class="note">Please use a made-up name and a 555 number. Bookings show up on the <a href="/appointments">appointments page</a>.</p>
+      </article>
+      <article>
+        <h2>How it works</h2>
+        <ol class="steps">
+          <li>Your browser opens a voice call to a <a href="https://vapi.ai">Vapi</a> assistant (speech-to-text, GPT-4o mini, text-to-speech).</li>
+          <li>When it needs the calendar, Vapi calls this site's tool API: <code>check_availability</code>, <code>book_appointment</code>, <code>reschedule_appointment</code>, <code>cancel_appointment</code>, <code>transfer_to_human</code>.</li>
+          <li>The API applies the clinic rules (hours, 30-minute slots, 24-hour notice) and stores bookings in Cloudflare D1. An atomic reserve on the slot stops double booking.</li>
+          <li>When the call ends, Vapi posts a report and the API logs the transcript, tool calls, and outcome.</li>
+        </ol>
+      </article>
+    </section>
+  </main>
+
+  <footer>
+    <p>Portfolio demo by Muhammad Mustafa. Brightside Dental, its address, and its phone numbers are fictional. It runs on free Vapi credits, so it may be unavailable once they are used up. Demo bookings are deleted after 30 days.</p>
+  </footer>
+
+  <script type="module" src="/assets/talk.js"></script>
+</body>
+</html>

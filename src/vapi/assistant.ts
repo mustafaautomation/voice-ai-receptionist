@@ -1,6 +1,6 @@
 import { CLINIC, SERVICE_LABELS } from "../clinic.js";
 
-export const SYSTEM_PROMPT = `You are the phone receptionist for ${CLINIC.name}, a fictional dental clinic at ${CLINIC.address}. The clinic phone is ${CLINIC.phoneDisplay}. Timezone is ${CLINIC.timezone} (Central Time).
+export const SYSTEM_PROMPT = `You are the phone receptionist for ${CLINIC.name}, a fictional dental clinic at ${CLINIC.address}. The clinic phone is ${CLINIC.phoneDisplay}. Timezone is ${CLINIC.timezone} (Central Time). Today is {{"now" | date: "%A, %B %d, %Y, %I:%M %p", "America/Chicago"}} Central Time.
 
 Hours:
 - Monday to Friday, 8:00 AM to 5:00 PM
@@ -28,8 +28,15 @@ export type AssistantTool = {
     description: string;
     parameters: Record<string, unknown>;
   };
-  server: { url: string };
+  server: VapiServer;
 };
+
+/** Vapi sends these headers on every request to the server, so the API can check x-vapi-secret. */
+export type VapiServer = { url: string; headers?: Record<string, string> };
+
+function serverFor(url: string, secret?: string): VapiServer {
+  return secret ? { url, headers: { "x-vapi-secret": secret } } : { url };
+}
 
 const objectSchema = (properties: Record<string, unknown>, required: string[]): Record<string, unknown> => ({
   type: "object",
@@ -38,7 +45,7 @@ const objectSchema = (properties: Record<string, unknown>, required: string[]): 
   additionalProperties: false,
 });
 
-export function buildTools(publicBaseUrl: string): AssistantTool[] {
+export function buildTools(publicBaseUrl: string, secret?: string): AssistantTool[] {
   const base = publicBaseUrl.replace(/\/$/, "");
   const tools: Array<{ name: string; description: string; parameters: Record<string, unknown> }> = [
     {
@@ -99,15 +106,15 @@ export function buildTools(publicBaseUrl: string): AssistantTool[] {
   return tools.map((tool) => ({
     type: "function" as const,
     function: { name: tool.name, description: tool.description, parameters: tool.parameters },
-    server: { url: `${base}/vapi/tools/${tool.name}` },
+    server: serverFor(`${base}/vapi/tools/${tool.name}`, secret),
   }));
 }
 
 export type VapiAssistantPayload = {
   name: string;
   firstMessage: string;
-  serverUrl: string;
-  serverUrlSecret?: string;
+  server: VapiServer;
+  serverMessages: string[];
   endCallMessage: string;
   silenceTimeoutSeconds: number;
   maxDurationSeconds: number;
@@ -130,20 +137,21 @@ export function buildAssistant(input: {
   const payload: VapiAssistantPayload = {
     name: `${CLINIC.name} Receptionist`,
     firstMessage: `Thank you for calling ${CLINIC.name}. I can share our hours, or book, move, and cancel a visit. What do you need?`,
-    serverUrl: `${input.publicBaseUrl.replace(/\/$/, "")}/vapi/webhook`,
+    server: serverFor(`${input.publicBaseUrl.replace(/\/$/, "")}/vapi/webhook`, input.serverUrlSecret),
+    serverMessages: ["end-of-call-report"],
     endCallMessage: `Thank you for calling ${CLINIC.name}. Goodbye.`,
     silenceTimeoutSeconds: 30,
-    maxDurationSeconds: 600,
+    // Short cap: the public demo runs on free Vapi credits.
+    maxDurationSeconds: 240,
     model: {
       provider: "openai",
       model: input.model ?? "gpt-4o-mini",
       temperature: 0.3,
       messages: [{ role: "system", content: SYSTEM_PROMPT }],
-      tools: buildTools(input.publicBaseUrl),
+      tools: buildTools(input.publicBaseUrl, input.serverUrlSecret),
     },
     voice: { provider: "vapi", voiceId: "Elliot" },
     transcriber: { provider: "deepgram", model: "nova-2", language: "en" },
   };
-  if (input.serverUrlSecret) payload.serverUrlSecret = input.serverUrlSecret;
   return payload;
 }

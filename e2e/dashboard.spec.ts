@@ -30,3 +30,12 @@ test("search and missing call", async ({ page }) => {
   await page.goto("/calls/missing");
   await expect(page.getByRole("heading", { name: "Not found" })).toBeVisible();
 });
+
+test("landing page offers the browser call", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Talk to the front desk." })).toBeVisible();
+  const talk = page.getByRole("button", { name: "Talk to the receptionist" });
+  await expect(talk).toBeVisible();
+  await expect(talk).toHaveAttribute("data-assistant-id", /^[0-9a-f-]{36}$/);
+  await expect(page.getByRole("navigation").getByRole("link", { name: "Appointments" })).toHaveAttribute("href", "/appointments");
+});
