@@ -74,5 +74,17 @@ describe("assistant sync", () => {
       RELAY_TOKEN: "relay-token",
     });
     expect(relay).toMatchObject({ calendarProvider: "relay", relayNamespace: "brightside" });
+    const web = parseConfig({
+      VAPI_WEBHOOK_SECRET: "local-secret",
+      PUBLIC_BASE_URL: "https://voice.example.test/",
+      TRUST_PROXY_HEADERS: "true",
+    });
+    expect(web).toMatchObject({
+      webCallOrigins: ["https://voice.example.test"],
+      webCallLimitPerVisitor: 3,
+      webCallLimitPerDay: 40,
+      webCallTokenTtlSeconds: 30,
+      trustProxyHeaders: true,
+    });
   });
 });

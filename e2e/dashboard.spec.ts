@@ -36,6 +36,24 @@ test("landing page offers the browser call", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Talk to the front desk." })).toBeVisible();
   const talk = page.getByRole("button", { name: "Talk to the receptionist" });
   await expect(talk).toBeVisible();
-  await expect(talk).toHaveAttribute("data-assistant-id", /^[0-9a-f-]{36}$/);
+  await expect(talk).not.toHaveAttribute("data-public-key", /.+/);
   await expect(page.getByRole("navigation").getByRole("link", { name: "Appointments" })).toHaveAttribute("href", "/appointments");
+});
+
+test("landing page shows the limit message when the server refuses a call", async ({ page }) => {
+  await page.route("**/api/call-token", (route) =>
+    route.fulfill({
+      status: 429,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: "call_limit_reached",
+        scope: "visitor",
+        message: "You have used the 3 demo calls allowed per visitor in 24 hours. Please try again in about 5 hours.",
+      }),
+    }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Talk to the receptionist" }).click();
+  await expect(page.locator("#status")).toHaveText(/used the 3 demo calls/);
+  await expect(page.locator("#console")).toHaveAttribute("data-state", "limited");
 });
