@@ -34,7 +34,7 @@ The relay calendar loads the clinic's appointments, runs the same rules as the S
 
 The page has no Vapi key in its HTML. Before each call it asks `POST /api/call-token`, which:
 
-1. Works out the visitor IP from the header Vercel sets (`TRUST_PROXY_HEADERS=true`; elsewhere it uses the socket address, so a spoofed header does not help). Only an HMAC of the IP is stored.
+1. Works out the visitor IP from the header Vercel sets (`TRUST_PROXY_HEADERS=true`; elsewhere it uses the socket address, so a spoofed header does not help). IPv6 addresses are counted per /64, since one device usually rotates through addresses in its /64. Only an HMAC of the address is stored.
 2. Allows **3 calls per visitor IP in a rolling 24 hours** and **40 calls per UTC day in total** (`WEB_CALL_LIMIT_PER_VISITOR`, `WEB_CALL_LIMIT_PER_DAY`). Each call is a numbered row in the D1 store written with the atomic `reserve`, so the counts hold across serverless instances and two racing requests cannot both take the last slot. If the store is unreachable, the call is refused.
 3. Returns what the browser needs to start the call. There are two modes:
    - **`jwt` (preferred).** With `VAPI_API_KEY` and `VAPI_ORG_ID` set on the server, it signs a Vapi public JWT (HS256, server side). The token expires after 30 seconds and Vapi only accepts it from the allowed origin and for this one assistant. The public key can then be disabled in Vapi.
@@ -42,7 +42,7 @@ The page has no Vapi key in its HTML. Before each call it asks `POST /api/call-t
 
 Over the limit, the endpoint returns `429` with a message the page shows ("You have used the 3 demo calls…" or "The demo has reached its call limit for today…").
 
-**Current state of the live site:** it runs in `public-key` mode until the private key is added to the Vercel project. In that mode the limit is not airtight: someone who copies the public key from a granted response can start calls from a script that fakes the `Origin` header. In `jwt` mode the remaining gaps are smaller: rotating IP addresses gives 3 calls per address, still bounded by the 40-per-day cap, and one granted token can be replayed from a script until it expires 30 seconds later. Every call is capped at 4 minutes, and the Vapi account only holds free credits.
+**Current state of the live site:** it runs in `public-key` mode until the private key is added to the Vercel project. In that mode the limit is not airtight: someone who copies the public key from a granted response can start calls from a script that fakes the `Origin` header. In `jwt` mode the remaining gaps are smaller: rotating IP addresses (a VPN, or an IPv6 range wider than a /64) gives 3 calls per address, still bounded by the 40-per-day cap, and one granted token can be replayed from a script until it expires 30 seconds later. Every call is capped at 4 minutes, and the Vapi account only holds free credits.
 
 ## Call flow
 
