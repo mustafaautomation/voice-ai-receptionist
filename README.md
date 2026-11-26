@@ -129,7 +129,7 @@ Business rules, America/Chicago:
 
 ## Setup
 
-Requires Node.js 22.
+Requires Node.js 22.12 or newer, on an even-numbered release (22, 24, 26 and up). Dependencies refuse odd releases such as 25, which prints an EBADENGINE warning on install.
 
 ```bash
 cp .env.example .env
