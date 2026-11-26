@@ -6,7 +6,7 @@ export function toUtcIso(dt: DateTime): string {
 }
 
 export function parseToUtcIso(input: string): string | null {
-  const dt = DateTime.fromISO(input, { setZone: true });
+  const dt = DateTime.fromISO(input, { setZone: true, zone: CLINIC.timezone });
   if (!dt.isValid) return null;
   return toUtcIso(dt);
 }
